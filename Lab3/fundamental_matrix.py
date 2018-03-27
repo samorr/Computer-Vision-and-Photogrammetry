@@ -106,9 +106,8 @@ def get_projection_matrices_from_essential(E, points_image_1, points_image_2):
 
     return P1, P2
 
-def triangulate_points(E, points_image_1, points_image_2, filename):
+def triangulate_points(P1, P2, points_image_1, points_image_2, filename):
     ''' Points sholud be normalized (multiplied by inverse of K) '''
-    P1, P2 = get_projection_matrices_from_essential(E, points_image_1, points_image_2)
     hom_points_3d = np.array([compute_3d_point(P1, P2, point1, point2) for point1, point2 in zip(points_image_1, points_image_2)])
     points_3d = hom_points_3d / hom_points_3d[:,-1,np.newaxis]
 
@@ -206,4 +205,5 @@ im.save('data/kronan2_norm_ess_epipoles.JPG', 'JPEG')
 
 norm_points1 = np.linalg.inv(K).dot(points_image_1.T).T
 norm_points2 = np.linalg.inv(K).dot(points_image_2.T).T
-triangulate_points(E, norm_points2, norm_points1, 'pc.ply')
+P1, P2 = get_projection_matrices_from_essential(E, points_image_2, points_image_1)
+triangulate_points(P1, P2, norm_points2, norm_points1, 'pc.ply')
