@@ -128,11 +128,12 @@ draw = ImageDraw.Draw(im)
 for i in range(20):
     draw = draw_epipolar_line(points_image_2[i,:], F, draw, im.size[0])
 width = 3
+fill = (0,255,0)
 for point in points_image_1[:20,:]:
     x = point[0]
     y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = 1000)
-    draw.point(point[:-1], fill = 1000)
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan1_epipoles.JPG', 'JPEG')
 
 im = Image.open('data/kronan2.JPG')
@@ -140,6 +141,11 @@ draw = ImageDraw.Draw(im)
 
 for i in range(20):
     draw = draw_epipolar_line(points_image_2[i,:], F.T, draw, im.size[0])
+for point in points_image_2[:20,:]:
+    x = point[0]
+    y = point[1]
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan2_epipoles.JPG', 'JPEG')
 
 #task 3
@@ -163,8 +169,8 @@ for i in range(20):
 for point in points_image_1[:20,:]:
     x = point[0]
     y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = 1000)
-    draw.point(point[:-1], fill = 1000)
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan1_norm_epipoles.JPG', 'JPEG')
 
 im = Image.open('data/kronan2.JPG')
@@ -173,6 +179,11 @@ draw = ImageDraw.Draw(im)
 
 for i in range(20):
     draw = draw_epipolar_line(points_image_1[i,:], F.T, draw, im.size[0])
+for point in points_image_2[:20,:]:
+    x = point[0]
+    y = point[1]
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan2_norm_epipoles.JPG', 'JPEG')
 
 # task 4
@@ -189,8 +200,8 @@ for i in range(20):
 for point in points_image_1[:20,:]:
     x = point[0]
     y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = 1000)
-    draw.point(point[:-1], fill = 1000)
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan1_norm_ess_epipoles.JPG', 'JPEG')
 
 im = Image.open('data/kronan2.JPG')
@@ -198,6 +209,11 @@ draw = ImageDraw.Draw(im)
 
 for i in range(20):
     draw = draw_epipolar_line(points_image_1[i,:], new_F.T, draw, im.size[0])
+for point in points_image_2[:20,:]:
+    x = point[0]
+    y = point[1]
+    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+    draw.point(point[:-1], fill = fill)
 im.save('data/kronan2_norm_ess_epipoles.JPG', 'JPEG')
 
 
