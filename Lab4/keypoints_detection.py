@@ -61,7 +61,7 @@ def harris_corner_detector(image, threshold, σ_I=5., s=0.7, α=0.05, print_info
     ndim.gaussian_filter(im_x ** 2, sigma=σ_I, output=gaussian_I_x_2)
     ndim.gaussian_filter(im_y ** 2, sigma=σ_I, output=gaussian_I_y_2)
     ndim.gaussian_filter(im_x * im_y, sigma=σ_I, output=gaussian_I_x_y)
-    cornerness = gaussian_I_x_2 * gaussian_I_x_2 - gaussian_I_x_y ** 2 - α * (gaussian_I_x_2 + gaussian_I_y_2) ** 2
+    cornerness = σ_D ** 2 * (gaussian_I_x_2 * gaussian_I_x_2 - gaussian_I_x_y ** 2 - α * (gaussian_I_x_2 + gaussian_I_y_2) ** 2)
     points_over_threshold = np.argwhere(cornerness > threshold)
     if print_info:
         print('Maximal and minimal cornerness values: ', cornerness.max(), cornerness.min())
@@ -70,7 +70,7 @@ def harris_corner_detector(image, threshold, σ_I=5., s=0.7, α=0.05, print_info
 
 def harris_corner_with_simple_filtering(image, threshold=1e2):
     '''Detecting interesting points with Harris corner detector
-       using easy local maxima requirement'''
+       using simple local maxima requirement'''
     points, cornerness = harris_corner_detector(image, threshold)
     return find_local_maxima(points, cornerness)
 
@@ -81,6 +81,8 @@ def harris_corner_with_ANMS(image, number_of_output_points, threshold=1e2, coeff
     return adaptive_non_maximal_suppression(points, cornerness, number_of_output_points, coeff)
 
 def harris_laplace(image, laplace_threshold, harris_threshold, σ_init, σs_num, σ_step):
+    '''Detecting interesting points with Harris-Laplace
+       cornar detector using simple local maxima requirement'''
     keypoints_candidates = []
 
     # find local maxima of harris function
@@ -92,16 +94,25 @@ def harris_laplace(image, laplace_threshold, harris_threshold, σ_init, σs_num,
     laplace = np.zeros((σs_num, image.shape[0], image.shape[1]))
     for i in range(σs_num):
         ndim.gaussian_laplace(image, σ_init * σ_step ** i, output=laplace[i,:,:])
+        laplace[i,:,:] *= (σ_init * σ_step ** i) ** 2
         print(laplace[i].min(), laplace[i].max())
     
     # find local extremas over scales of laplace function
+    kp = keypoints_candidates[0] # first and last scales must be treated separately
+    kp = kp[np.abs(laplace[0,kp[:,0],kp[:,1]]) > laplace_threshold]
+    keypoints_candidates[0] = kp[(((laplace[0] - laplace[1])[kp[:,0],kp[:,1]] < 0) & ((laplace[0] - laplace[2])[kp[:,0],kp[:,1]] < 0)) |
+                                     (((laplace[0] - laplace[1])[kp[:,0],kp[:,1]] > 0) & ((laplace[0] - laplace[2])[kp[:,0],kp[:,1]] > 0))]
+    kp = keypoints_candidates[-1]
+    kp = kp[np.abs(laplace[-1,kp[:,0],kp[:,1]]) > laplace_threshold]
+    keypoints_candidates[-1] = kp[(((laplace[-1] - laplace[-2])[kp[:,0],kp[:,1]] < 0) & ((laplace[-1] - laplace[-3])[kp[:,0],kp[:,1]] < 0)) |
+                                     (((laplace[-1] - laplace[-2])[kp[:,0],kp[:,1]] > 0) & ((laplace[-1] - laplace[-3])[kp[:,0],kp[:,1]] > 0))]
     for i in range(1, σs_num-1):
         kp = keypoints_candidates[i]
         kp = kp[np.abs(laplace[i,kp[:,0],kp[:,1]]) > laplace_threshold]
         keypoints_candidates[i] = kp[(((laplace[i] - laplace[i-1])[kp[:,0],kp[:,1]] < 0) & ((laplace[i] - laplace[i+1])[kp[:,0],kp[:,1]] < 0)) |
                                      (((laplace[i] - laplace[i-1])[kp[:,0],kp[:,1]] > 0) & ((laplace[i] - laplace[i+1])[kp[:,0],kp[:,1]] > 0))]
 
-    return keypoints_candidates[1:-1]
+    return keypoints_candidates
 
 def draw_points_with_scale_markers(filename, points, fill, new_filename, scale_init, scale_step):
     im = Image.open(filename)
@@ -186,6 +197,7 @@ def filter_low_contrast_keypoints(keypoints, diff, threshold=7.65, eigenvals_rat
 
 
     # this version returns more points but it's using 3D (scale included) hessian and gradient instead of 2D
+    
     # hess_after_thresholding = keypoint_hess[np.abs(extr_values) > threshold,:,:]
     # hess_det_after_thresholding = hess_det[hess_det != 0][np.abs(extr_values) > threshold]
     # # print(keypoints_after_thresholding.shape, hess_after_thresholding.shape, hess_det_after_thresholding.shape)
@@ -314,51 +326,52 @@ def detect_with_DoG():
     print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_image_with_points('data/Notre_Dame/ND_2.jpg', np.fliplr(keypoints), (255,0,0), 'data/Notre_Dame/DoG2.jpg')
 
-detect_with_DoG()
+# detect_with_DoG()
 
 def detect_with_harris_laplace():
     print('Harris-Laplace')
     image = imageio.imread('data/Episcopal_Gaudi/EG_1_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 20., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Episcopal_Gaudi/EG_1.jpg', keypoints, (255,0,0), 'data/Episcopal_Gaudi/Harris-Laplace1.jpg', 1.5, 1.2)
 
 
     print('Harris-Laplace')
     image = imageio.imread('data/Episcopal_Gaudi/EG_2_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 15., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Episcopal_Gaudi/EG_2.jpg', keypoints, (255,0,0), 'data/Episcopal_Gaudi/Harris-Laplace2.jpg', 1.5, 1.2)
 
 
     print('Harris-Laplace')
     image = imageio.imread('data/Mount_Rushmore/MR_1_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 13., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Mount_Rushmore/MR_1.jpg', keypoints, (255,0,0), 'data/Mount_Rushmore/Harris-Laplace1.jpg', 1.5, 1.2)
 
 
     print('Harris-Laplace')
     image = imageio.imread('data/Mount_Rushmore/MR_2_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 15., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Mount_Rushmore/MR_2.jpg', keypoints, (255,0,0), 'data/Mount_Rushmore/Harris-Laplace2.jpg', 1.5, 1.2)
 
 
     print('Harris-Laplace')
     image = imageio.imread('data/Notre_Dame/ND_1_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 20., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Notre_Dame/ND_1.jpg', keypoints, (255,0,0), 'data/Notre_Dame/Harris-Laplace1.jpg', 1.5, 1.2)
 
 
     print('Harris-Laplace')
     image = imageio.imread('data/Notre_Dame/ND_2_gray.jpg')
-    keypoints = harris_laplace(image, 1., 1e2, 1.5, 13, 1.2)
+    keypoints = harris_laplace(image, 20., 1e2, 1.5, 13, 1.2)
     # print('Found keypoints shape: ', keypoints.shape, '\n\n\n')
     draw_points_with_scale_markers('data/Notre_Dame/ND_2.jpg', keypoints, (255,0,0), 'data/Notre_Dame/Harris-Laplace2.jpg', 1.5, 1.2)
 
-# detect_with_harris_laplace( )
+detect_with_harris_laplace()
+
 # image = np.array(Image.open('/home/dominik/Dokumenty/Studia/CVandPhotogrammetry/piesek/IMG_0161.JPG', 'r').convert('L'))
 # keypoints = harris_corner_with_ANMS(image, 1500, threshold=5e1)
 # print(keypoints.shape)
