@@ -13,12 +13,7 @@ points2 = np.concatenate([data['y2'], data['x2']], axis=1)
 
 image = np.asarray(Image.open('data/Episcopal_Gaudi/1_o.jpg', 'r').convert('L')).astype(np.float)
 
-def compute_orientations_histogram(image, point, take_scale=False, sigma=None):
-    coeff = 1.
-    if take_scale:
-        assert sigma is not None, 'For taking scale into account the sigma parameter is needed!'
-        coeff = sigma * 1.5
-
+def compute_orientations_histogram(image, point, gradient, coeff):
     point = point.astype(np.int)
     top_pad = 0
     bottom_pad = 0
@@ -41,7 +36,7 @@ def compute_orientations_histogram(image, point, take_scale=False, sigma=None):
     if right >= image.shape[1]:
         right_pad = 20
 
-    grad = np.pad(np.stack(np.gradient(image), axis=-1), ((top_pad, bottom_pad), (left_pad, right_pad), (0,0)), 'reflect')[top:bottom, left:right]
+    grad = np.pad(gradient, ((top_pad, bottom_pad), (left_pad, right_pad), (0,0)), 'reflect')[top:bottom, left:right]
 
     ax = np.arange(-41 // 2 + 1., 41 // 2 + 1.)
     xx, yy = np.meshgrid(ax, ax)
@@ -56,8 +51,15 @@ def compute_orientations_histogram(image, point, take_scale=False, sigma=None):
 
     return histogram
 
+def compute_orientations_histogram_for_all_points(image, points, sigma=1.): # for now I don't know how to vectorized this operation
+    coeff = 1.5 * sigma
+    gradient = np.stack(np.gradient(image), axis=-1)
+    histograms = [compute_orientations_histogram(image, point, gradient, coeff) for point in points]
+
+    return histograms
+
+
 t = time.time()
-for point in points1:
-    compute_orientations_histogram(image,point)
+compute_orientations_histogram_for_all_points(image, points1)
 
 print('Time for {} points:'.format(points1.shape[0]), time.time() - t)
