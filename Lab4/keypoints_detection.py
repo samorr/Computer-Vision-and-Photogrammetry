@@ -50,14 +50,15 @@ def draw_image_with_points(filename, points, fill, new_filename):
     im.save(new_filename, 'JPEG')
 
 def harris_corner_detector(image, threshold, σ_I=5., s=0.7, α=0.05, print_info=False):
+    # maybe blurr it first ??
     σ_D = s * σ_I
-    im_x = np.zeros(image.shape)
-    im_y = np.zeros(image.shape)
+    im_x = np.empty(image.shape)
+    im_y = np.empty(image.shape)
     ndim.gaussian_filter1d(image, sigma=σ_D, order=1, axis=0, output=im_x)
     ndim.gaussian_filter1d(image, sigma=σ_D, order=1, axis=1, output=im_y)
-    gaussian_I_x_2 = np.zeros(image.shape)
-    gaussian_I_y_2 = np.zeros(image.shape)
-    gaussian_I_x_y = np.zeros(image.shape)
+    gaussian_I_x_2 = np.empty(image.shape)
+    gaussian_I_y_2 = np.empty(image.shape)
+    gaussian_I_x_y = np.empty(image.shape)
     ndim.gaussian_filter(im_x ** 2, sigma=σ_I, output=gaussian_I_x_2)
     ndim.gaussian_filter(im_y ** 2, sigma=σ_I, output=gaussian_I_y_2)
     ndim.gaussian_filter(im_x * im_y, sigma=σ_I, output=gaussian_I_x_y)
@@ -163,7 +164,7 @@ def difference_of_gaussians(image, octaves_num=4, σ=1.6, scales_num=3):
 def difference_of_gaussians_one_octave(image, σ, scales_num):
     gaussian_images = []
     k = 2**(1/scales_num)
-    gaussian_images = np.zeros((scales_num+3, image.shape[0], image.shape[1]))
+    gaussian_images = np.empty((scales_num+3, image.shape[0], image.shape[1]))
     for i in range(scales_num+3):
         ndim.gaussian_filter(image, k**i *σ, order=(0,0), output=gaussian_images[i,:,:]) # the difference of this and next line is caused by rounding to int (but why the difference in keypoints is so big??)
         # gaussian_images[i,:,:] = ndim.gaussian_filter(image, k**i *σ, order=(0,0))
@@ -182,21 +183,21 @@ def filter_low_contrast_keypoints(keypoints, diff, threshold=7.65, eigenvals_rat
     extr_locations = -1 * np.sum(keypoints_grad[:,np.newaxis,:] * hess_inv, axis=-1)
     extr_values = diff[1,keypoints_not_singular[:,0], keypoints_not_singular[:,1]] + np.sum(extr_locations * keypoints_grad, axis=-1) / 2.
     keypoints_after_thresholding = keypoints_not_singular[np.abs(extr_values) > threshold,:]
-    hessian_trace_square_2x2 = (ndim.laplace(diff[1,:,:]) ** 2)[keypoints_after_thresholding[:,0], keypoints_after_thresholding[:,1]]
-    hessian_det_2x2 = skimage.feature.hessian_matrix_det(diff[1,:,:])[keypoints_after_thresholding[:,0], keypoints_after_thresholding[:,1]]
-    keypoints_after_thresholding = keypoints_after_thresholding[hessian_det_2x2 != 0]
-    hessian_trace_square_2x2 = hessian_trace_square_2x2[hessian_det_2x2 != 0]
-    hessian_det_2x2 = hessian_det_2x2[hessian_det_2x2 != 0]
-    return keypoints_after_thresholding[(hessian_trace_square_2x2 / hessian_det_2x2 < (eigenvals_ratio+1)**2 / eigenvals_ratio)]
+    # hessian_trace_square_2x2 = (ndim.laplace(diff[1,:,:]) ** 2)[keypoints_after_thresholding[:,0], keypoints_after_thresholding[:,1]]
+    # hessian_det_2x2 = skimage.feature.hessian_matrix_det(diff[1,:,:])[keypoints_after_thresholding[:,0], keypoints_after_thresholding[:,1]]
+    # keypoints_after_thresholding = keypoints_after_thresholding[hessian_det_2x2 != 0]
+    # hessian_trace_square_2x2 = hessian_trace_square_2x2[hessian_det_2x2 != 0]
+    # hessian_det_2x2 = hessian_det_2x2[hessian_det_2x2 != 0]
+    # return keypoints_after_thresholding[(hessian_trace_square_2x2 / hessian_det_2x2 <= (eigenvals_ratio+1)**2 / eigenvals_ratio)]
 
 
     # this version returns more points but it's using 3D (scale included) hessian and gradient instead of 2D
-    
-    # hess_after_thresholding = keypoint_hess[np.abs(extr_values) > threshold,:,:]
-    # hess_det_after_thresholding = hess_det[hess_det != 0][np.abs(extr_values) > threshold]
-    # # print(keypoints_after_thresholding.shape, hess_after_thresholding.shape, hess_det_after_thresholding.shape)
-    # hess_trace_square_after_thresholding = np.trace(hess_after_thresholding, axis1=1, axis2=2) ** 2
-    # return keypoints_after_thresholding[hess_trace_square_after_thresholding / hess_det_after_thresholding < (eigenvals_ratio+1)**2 / eigenvals_ratio,:]
+    hess_after_thresholding = keypoint_hess[np.abs(extr_values) > threshold,:,:]
+    hess_det_after_thresholding = hess_det[hess_det != 0][np.abs(extr_values) > threshold]
+    extr_locations_after_thresholding = extr_locations[np.abs(extr_values) > threshold,:]
+    # print(keypoints_after_thresholding.shape, hess_after_thresholding.shape, hess_det_after_thresholding.shape)
+    hess_trace_square_after_thresholding = np.trace(hess_after_thresholding, axis1=1, axis2=2) ** 2
+    return (keypoints_after_thresholding + extr_locations_after_thresholding[:,1:])[hess_trace_square_after_thresholding / hess_det_after_thresholding <= (eigenvals_ratio+1)**2 / eigenvals_ratio,:]
 
 def compute_keypoints_original_coordinates(keypoints_for_octaves):
     '''Scaling keypoints coordinates back to original image'''
@@ -366,10 +367,14 @@ def detect_with_harris_laplace():
 
 # detect_with_harris_laplace()
 
-# image = np.array(Image.open('/home/dominik/Dokumenty/Studia/CVandPhotogrammetry/piesek/IMG_0161.JPG', 'r').convert('L'))
-# keypoints = harris_corner_with_ANMS(image, 1500, threshold=5e1)
-# print(keypoints.shape)
-# draw_image_with_points('/home/dominik/Dokumenty/Studia/CVandPhotogrammetry/piesek/IMG_0161.JPG', np.fliplr(keypoints), (255,0,0), '/home/dominik/Dokumenty/Studia/CVandPhotogrammetry/piesek/features/IMG_0161.JPG')
+
+# for i in range(161,173):
+#     filename = 'IMG_0' + str(i) + '.JPG'
+#     path = '/home/dominik/Dokumenty/Studia/CVandPhotogrammetry/piesek/'
+#     image = np.array(Image.open(path + filename, 'r').convert('L'))
+#     keypoints = harris_corner_with_ANMS(image, 1500, threshold=5e1)
+#     print(keypoints.shape)
+#     draw_image_with_points(path + filename, np.fliplr(keypoints), (255,0,0), path + 'features/' + filename)
 
 # image = np.array(Image.open('data/kronan1_gray.jpg', 'r').convert('L'))
 # keypoints = harris_corner_with_ANMS(image, 1500, threshold=5e1)
