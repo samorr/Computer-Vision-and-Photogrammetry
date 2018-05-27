@@ -23,7 +23,6 @@ def gaussian_kernel(size, sigma):
     xx, yy = np.meshgrid(ax, ax)
 
     kernel = np.exp(-(xx**2 + yy**2) / (2. * sigma**2))
-    # kernel /= np.sum(kernel)
     return kernel
 
 def compute_dominant_orientation(point_l, gradient, coeff):
@@ -77,9 +76,6 @@ def compute_descriptor(point, image_gradient, sigma=1.):
     patch_gradient = ndim.interpolation.rotate(big_patch_gradient, dominant_orientation * 10, reshape=False, prefilter=False)[center - DESCRIPTOR_WINDOW_SIZE // 2 : center + DESCRIPTOR_WINDOW_SIZE // 2, center - DESCRIPTOR_WINDOW_SIZE // 2 : center + DESCRIPTOR_WINDOW_SIZE // 2].reshape((DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE, 2))
     kernel = gaussian_kernel(DESCRIPTOR_WINDOW_SIZE, DESCRIPTOR_WINDOW_SIZE / 4.).reshape(DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE)
     magnitude = np.sqrt(np.sum(patch_gradient ** 2, axis=-1)) * kernel
-    # return (patch_gradient * kernel[:,np.newaxis]).reshape(-1)
-    # imageio.imsave('temp.jpg', magnitude.reshape((16,16)) / magnitude.max() * 255)
-    # print(magnitude.max())
     orientation = np.arctan2(patch_gradient[:,0], patch_gradient[:,1])
     orientation[orientation < 0.] += 2. * np.pi
     orientation = 8. * orientation / (2. * np.pi)
@@ -88,17 +84,8 @@ def compute_descriptor(point, image_gradient, sigma=1.):
     descriptor = np.empty((DESCRIPTOR_WINDOW_SIZE, 8))
     floor = np.floor(orientation).astype(np.int)
     ceil = np.ceil(orientation).astype(np.int) # ceil and floor are arrays of histogram bins indices to which gradient vector contributes
-    # base = np.array([[0., 1.], [1., 1.], [1., 0.], [1., -1.], [0., -1.], [-1., -1.], [-1., 0.], [-1., 1.]]) # mayby just interpolation?
-    # base /= np.sqrt(np.sum(base ** 2, axis=1))[:, np.newaxis] # these are vectors that represents histogram bins
-    # base_per_vector = np.stack((base[ceil], base[floor]), axis=-1)
-    # base_per_vector[ceil == floor, 0, 1] = base_per_vector[ceil == floor, 1, 0]
-    # base_per_vector[ceil == floor, 1, 1] = -base_per_vector[ceil == floor, 0, 0] # if gradient is collinear with base vector then second one is set to be orthogonal
-    # coeffs = np.linalg.solve(base_per_vector, patch_gradient) # coefficients of gradient magnitude contribution in appropriate histogram bins
-    # coeffs_sum = np.sum(coeffs, axis=1)
-    # coeffs_sum[coeffs_sum == 0.] = 1.
-    # coeffs /= coeffs_sum[:, np.newaxis]
     
-    coeffs = np.empty((DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE, 2))
+    coeffs = np.empty((DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE, 2)) # coefficients of gradient magnitude contribution in appropriate histogram bins
     mask = floor == ceil
     coeffs[mask, 0] = 1.
     coeffs[mask, 1] = 0.
@@ -136,25 +123,7 @@ def match_keypoints(descriptors_image1, descriptors_image2):
     matches_distances = distances[ind, best_matches_indices]
     ratio = matches_distances[:,0] / matches_distances[:,1]
     sorted_indices = np.argsort(ratio)
-    return best_matches_indices[sorted_indices, :], matches_distances[sorted_indices, :], ratio[sorted_indices], ind[sorted_indices]
-
-def match_keypoints_with_removing(descriptors_image1, descriptors_image2, iters_num, threshold=0.7): # this function must be done differently, global indices aren't computed correctly
-    best_ind1, _, ratio1, ind1 = match_keypoints(descriptors_image1, descriptors_image2)
-    best_ind2, _, ratio2, ind2 = match_keypoints(descriptors_image2, descriptors_image1)
-    global_best_ind1 = best_ind1[ratio1 < threshold]
-    global_best_ind2 = best_ind2[ratio2 < threshold]
-    global_ind1 = ind1[ratio1 < threshold]
-    global_ind2 = ind2[ratio2 < threshold]
-    for i in range(1, iters_num):
-        descriptors_image1 = descriptors_image1[ratio1 < threshold]
-        descriptors_image2 = descriptors_image2[ratio2 < threshold]
-        best_ind1, best_dists1, ratio1, ind1 = match_keypoints(descriptors_image1, descriptors_image2)
-        best_ind2, best_dists2, ratio2, ind2 = match_keypoints(descriptors_image2, descriptors_image1)
-        global_ind1 = global_ind1[ratio1 < threshold]
-        global_ind2 = global_ind2[ratio2 < threshold]
-        global_best_ind1 = global_best_ind1[ratio1 < threshold]
-        global_best_ind2 = global_best_ind2[ratio2 < threshold]
-    return global_best_ind1, best_dists1, ratio1, global_ind1
+    return np.stack([ind[sorted_indices,0], best_matches_indices[sorted_indices, 0]], axis=1), matches_distances[sorted_indices, 0], ratio[sorted_indices]
 
 def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filename):
     im1 = Image.open(filename1)
@@ -183,6 +152,26 @@ def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filen
         draw.line([(x1, y1), (x2, y2)], fill=fill, width=2)
     imOut.save(new_filename, 'JPEG')
 
+def good_matches(matched_ind, ratio, threshold):
+    return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
+    ])
+
+def precision(matched_ind, ratio, threshold):
+    return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
+    ]) / len(matched_ind[ratio < threshold])
+
+def recall(matched_ind, ratio, threshold):
+    return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
+    ]) / np.count_nonzero(matched_ind[:,0] == matched_ind[:,1])
+
+def remove_duplicates(matches, ratio):
+    matched = set()
+    for i in range(matches.shape[0]):
+        if matches[i,1] in matched:
+            ratio[i] = 1.
+        else:
+            matched.add(matches[i,1])
+
 # t = time.time()
 # compute_dominant_orientation_for_all_points(points1, image)
 
@@ -191,23 +180,19 @@ def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filen
 
 # print('Time for {} points:'.format(points1.shape[0]), time.time() - t)
 
-points1 = detect.harris_corner_with_ANMS(image1, 150)
-points2 = detect.harris_corner_with_ANMS(image2, 150)
+# points1 = detect.harris_corner_with_ANMS(image1, 150)
+# points2 = detect.harris_corner_with_ANMS(image2, 150)
 
 desc1 = compute_descriptors_for_all_points(points1, image1)
 desc2 = compute_descriptors_for_all_points(points2, image2)
-matches, matches_dists, ratio, ind = match_keypoints(desc1, desc2)
+matches, matches_dists, ratio = match_keypoints(desc1, desc2)
+remove_duplicates(matches, ratio)
+threshold = 0.8
+print('Good matches:', good_matches(matches, ratio, threshold))
+print('Precision:', precision(matches, ratio, threshold))
+print('Recall:', recall(matches, ratio, threshold))
 
-# primitive way of duplicates removing
-matched = set()
-for i in range(matches.shape[0]):
-    if matches[i,0] in matched:
-        ratio[i] = 1.
-    else:
-        matched.add(matches[i,0])
 
-draw_matching('data/Notre_Dame/1_o.jpg', 'data/Notre_Dame/2_o.jpg', points1, points2, np.concatenate([ind[ratio < 0.7], matches[:,0,np.newaxis][ratio < 0.7]], axis=1), 'data/Notre_Dame/my_detecting_and_matching_with_removing.jpg')
+# draw_matching('data/Notre_Dame/1_o.jpg', 'data/Notre_Dame/2_o.jpg', points1, points2, matches[ratio < 0.7]], axis=1), 'data/Notre_Dame/my_detecting_and_matching_with_removing.jpg')
 
-# draw_matching('data/Mount_Rushmore/1_o.jpg', 'data/Mount_Rushmore/2_o.jpg', points1, points2, np.stack([np.arange(points1.shape[0]), np.arange(points2.shape[0])], axis=1), 'ground_truth_Mount_Rushmore.jpg')
-
-# match_keypoints_with_removing(desc1, desc2, 2, threshold=0.9)
+# draw_matching('data/Mount_Rushmore/1_o.jpg', 'data/Mount_Rushmore/2_o.jpg', points1, points2, matches, axis=1), 'ground_truth_Mount_Rushmore.jpg')
