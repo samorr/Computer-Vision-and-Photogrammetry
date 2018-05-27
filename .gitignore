@@ -10,3 +10,6 @@ papers
 .ipynb_checkpoints
 .DS_Store
 __pycache__
+
+# zipped files
+*.zip
