@@ -1,22 +1,16 @@
+import sys
+sys.path.append('..')
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage as ndim
 import matplotlib.pyplot as plt
 import time
 from scipy import io
-import keypoints_detection as detect
+from Lab4 import keypoints_detection as detect
 
 # Mount_Rushmore
 # Episcopal_Gaudi
 # Notre_Dame
-
-data = io.loadmat('data/Notre_Dame/f_o.mat')
-points1 = np.concatenate([data['y1'], data['x1']], axis=1)
-points2 = np.concatenate([data['y2'], data['x2']], axis=1)
-
-image1 = ndim.gaussian_filter(np.array(Image.open('data/Notre_Dame/1_o.jpg', 'r').convert('L')).astype(np.float), sigma=3.)
-image2 = ndim.gaussian_filter(np.array(Image.open('data/Notre_Dame/2_o.jpg', 'r').convert('L')).astype(np.float), sigma=3.)
-
 
 def gaussian_kernel(size, sigma):
     ax = np.arange(-size // 2 + 1., size // 2 + 1.)
@@ -110,9 +104,12 @@ def compute_descriptor(point, image_gradient, sigma=1.):
 
     return descriptor
 
-def compute_descriptors_for_all_points(points, image):
+def compute_descriptors_for_all_points(points, image, sigmas=None):
     gradient = np.stack(np.gradient(image), axis=-1)
-    descriptors = np.array([compute_descriptor(point, gradient) for point in points])
+    if sigmas is None:
+        descriptors = np.array([compute_descriptor(point, gradient) for point in points])
+    else:
+        descriptors = np.array([compute_descriptor(point, gradient, sigma) for point, sigma in zip(points, sigmas)])
     return descriptors
 
 
@@ -125,7 +122,7 @@ def match_keypoints(descriptors_image1, descriptors_image2):
     sorted_indices = np.argsort(ratio)
     return np.stack([ind[sorted_indices,0], best_matches_indices[sorted_indices, 0]], axis=1), matches_distances[sorted_indices, 0], ratio[sorted_indices]
 
-def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filename):
+def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filename, file_extension='JPEG'):
     im1 = Image.open(filename1)
     im2 = Image.open(filename2)
     totalWidth = im1.size[0] + im2.size[0]
@@ -150,15 +147,15 @@ def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filen
         draw.ellipse((x2 - width, y2 - width, x2 + width, y2 + width), fill=(0, 255, 0))
         draw.point(points2[ind[1]], fill=(0, 255, 0))
         draw.line([(x1, y1), (x2, y2)], fill=fill, width=2)
-    imOut.save(new_filename, 'JPEG')
+    imOut.save(new_filename, file_extension)
 
 def good_matches(matched_ind, ratio, threshold):
     return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
-    ])
+    ]), np.count_nonzero(ratio < threshold)
 
 def precision(matched_ind, ratio, threshold):
     return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
-    ]) / len(matched_ind[ratio < threshold])
+    ]) / np.count_nonzero(ratio < threshold)
 
 def recall(matched_ind, ratio, threshold):
     return np.count_nonzero((matched_ind[:,0] == matched_ind[:,1])[ratio < threshold
@@ -172,27 +169,37 @@ def remove_duplicates(matches, ratio):
         else:
             matched.add(matches[i,1])
 
-# t = time.time()
-# compute_dominant_orientation_for_all_points(points1, image)
 
-# t = time.time()
-# compute_descriptors_for_all_points(points1, image)
+if __name__ == '__main__':
+    data = io.loadmat('data/Notre_Dame/f_o.mat')
+    points1 = np.concatenate([data['y1'], data['x1']], axis=1)
+    points2 = np.concatenate([data['y2'], data['x2']], axis=1)
 
-# print('Time for {} points:'.format(points1.shape[0]), time.time() - t)
+    image1 = ndim.gaussian_filter(np.array(Image.open('data/Notre_Dame/1_o.jpg', 'r').convert('L')).astype(np.float), sigma=3.)
+    image2 = ndim.gaussian_filter(np.array(Image.open('data/Notre_Dame/2_o.jpg', 'r').convert('L')).astype(np.float), sigma=3.)
 
-# points1 = detect.harris_corner_with_ANMS(image1, 150)
-# points2 = detect.harris_corner_with_ANMS(image2, 150)
+    # t = time.time()
+    # compute_dominant_orientation_for_all_points(points1, image)
 
-desc1 = compute_descriptors_for_all_points(points1, image1)
-desc2 = compute_descriptors_for_all_points(points2, image2)
-matches, matches_dists, ratio = match_keypoints(desc1, desc2)
-remove_duplicates(matches, ratio)
-threshold = 0.8
-print('Good matches:', good_matches(matches, ratio, threshold))
-print('Precision:', precision(matches, ratio, threshold))
-print('Recall:', recall(matches, ratio, threshold))
+    # t = time.time()
+    # compute_descriptors_for_all_points(points1, image)
+
+    # print('Time for {} points:'.format(points1.shape[0]), time.time() - t)
+
+    # points1 = detect.harris_corner_with_ANMS(image1, 150)
+    # points2 = detect.harris_corner_with_ANMS(image2, 150)
+
+    desc1 = compute_descriptors_for_all_points(points1, image1)
+    desc2 = compute_descriptors_for_all_points(points2, image2)
+    matches, matches_dists, ratio = match_keypoints(desc1, desc2)
+    remove_duplicates(matches, ratio)
+    threshold = 0.8
+    well_matched, all_matches = good_matches(matches, ratio, threshold)
+    print('Well matched {} of {}'.format(well_matched, all_matches))
+    print('Precision:', precision(matches, ratio, threshold))
+    print('Recall:', recall(matches, ratio, threshold))
 
 
-# draw_matching('data/Notre_Dame/1_o.jpg', 'data/Notre_Dame/2_o.jpg', points1, points2, matches[ratio < 0.7]], axis=1), 'data/Notre_Dame/my_detecting_and_matching_with_removing.jpg')
+    # draw_matching('data/Notre_Dame/1_o.jpg', 'data/Notre_Dame/2_o.jpg', points1, points2, matches[ratio < 0.7]], 'data/Notre_Dame/my_detecting_and_matching_with_removing.jpg')
 
-# draw_matching('data/Mount_Rushmore/1_o.jpg', 'data/Mount_Rushmore/2_o.jpg', points1, points2, matches, axis=1), 'ground_truth_Mount_Rushmore.jpg')
+    # draw_matching('data/Mount_Rushmore/1_o.jpg', 'data/Mount_Rushmore/2_o.jpg', points1, points2, matches, 'ground_truth_Mount_Rushmore.jpg')

@@ -1,12 +1,8 @@
 from scipy import io
 import numpy as np
 from PIL import Image, ImageDraw
-from plyfile import PlyData, PlyElement
+from Lab3.plyfile import PlyData, PlyElement
 
-x = io.loadmat('data/compEx1data.mat')['x']
-
-points_image_1 = x[0,0].T
-points_image_2 = x[1,0].T
 
 def get_linear_solution(points_image_1, points_image_2):
     points_number = points_image_1.shape[0]
@@ -42,6 +38,14 @@ def essential_matrix(points_image_1, points_image_2, K):
     s = np.diag([(s[0] + s[1]) / 2., (s[0] + s[1]) / 2., 0.])
     E = u.dot(s.dot(v))
     return E
+
+def get_dists_from_epipolar_lines(points_image_1, points_image_2, matrix):
+    '''Get sum of distances from points of one image to theirs epipolar lines.
+    Points should be in homogenous coordinates.'''
+    epipolar_lines = (matrix @ points_image_2.T).T
+    dists = np.abs(np.sum(points_image_1 * epipolar_lines, axis=1)) / np.sqrt(epipolar_lines[:,0] ** 2 + epipolar_lines[:,1] ** 2)
+    return dists
+
 
 def draw_epipolar_line(point, F, draw, width):
     l = F.dot(point)
@@ -114,112 +118,119 @@ def triangulate_points(P1, P2, points_image_1, points_image_2, filename):
     points = np.array(list(zip(points_3d[:,0].ravel(), points_3d[:,1].ravel(), points_3d[:,2].ravel())),dtype=[('x','f4'), ('y','f4'),('z', 'f4')])
     el = PlyElement.describe(points, 'vertex')
     PlyData([el]).write(filename)
-    
-#task 1
 
-F = fundamental_matrix(points_image_1, points_image_2)
+if __name__ == '__main__':
 
-#task 2
+    x = io.loadmat('data/compEx1data.mat')['x']
 
-im = Image.open('data/kronan1.JPG')
-draw = ImageDraw.Draw(im)
+    points_image_1 = x[0,0].T
+    points_image_2 = x[1,0].T
+        
+    #task 1
 
+    F = fundamental_matrix(points_image_1, points_image_2)
 
-for i in range(20):
-    draw = draw_epipolar_line(points_image_2[i,:], F, draw, im.size[0])
-width = 3
-fill = (0,255,0)
-for point in points_image_1[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan1_epipoles.JPG', 'JPEG')
+    #task 2
 
-im = Image.open('data/kronan2.JPG')
-draw = ImageDraw.Draw(im)
-
-for i in range(20):
-    draw = draw_epipolar_line(points_image_2[i,:], F.T, draw, im.size[0])
-for point in points_image_2[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan2_epipoles.JPG', 'JPEG')
-
-#task 3
-
-T1 = get_normalization_matrix(points_image_1)
-T2 = get_normalization_matrix(points_image_2)
-
-norm_points1 = T1.dot(points_image_1.T).T
-norm_points2 = T2.dot(points_image_2.T).T
-
-F = fundamental_matrix(norm_points1, norm_points2)
-
-F = T1.T.dot(F.dot(T2))
-
-im = Image.open('data/kronan1.JPG')
-draw = ImageDraw.Draw(im)
+    im = Image.open('data/kronan1.JPG')
+    draw = ImageDraw.Draw(im)
 
 
-for i in range(20):
-    draw = draw_epipolar_line(points_image_2[i,:], F, draw, im.size[0])
-for point in points_image_1[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan1_norm_epipoles.JPG', 'JPEG')
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_2[i,:], F, draw, im.size[0])
+    width = 3
+    fill = (0,255,0)
+    for point in points_image_1[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan1_epipoles.JPG', 'JPEG')
 
-im = Image.open('data/kronan2.JPG')
-draw = ImageDraw.Draw(im)
+    im = Image.open('data/kronan2.JPG')
+    draw = ImageDraw.Draw(im)
 
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_2[i,:], F.T, draw, im.size[0])
+    for point in points_image_2[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan2_epipoles.JPG', 'JPEG')
 
-for i in range(20):
-    draw = draw_epipolar_line(points_image_1[i,:], F.T, draw, im.size[0])
-for point in points_image_2[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan2_norm_epipoles.JPG', 'JPEG')
+    #task 3
 
-# task 4
+    T1 = get_normalization_matrix(points_image_1)
+    T2 = get_normalization_matrix(points_image_2)
 
-K = io.loadmat('data/compEx3data.mat')['K']
-E = essential_matrix(points_image_1, points_image_2, K)
-new_F = np.linalg.inv(K.T).dot(E.dot(np.linalg.inv(K)))
+    norm_points1 = T1.dot(points_image_1.T).T
+    norm_points2 = T2.dot(points_image_2.T).T
 
-im = Image.open('data/kronan1.JPG')
-draw = ImageDraw.Draw(im)
+    F = fundamental_matrix(norm_points1, norm_points2)
 
-for i in range(20):
-    draw = draw_epipolar_line(points_image_2[i,:], new_F, draw, im.size[0])
-for point in points_image_1[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan1_norm_ess_epipoles.JPG', 'JPEG')
+    F = T1.T.dot(F.dot(T2))
 
-im = Image.open('data/kronan2.JPG')
-draw = ImageDraw.Draw(im)
-
-for i in range(20):
-    draw = draw_epipolar_line(points_image_1[i,:], new_F.T, draw, im.size[0])
-for point in points_image_2[:20,:]:
-    x = point[0]
-    y = point[1]
-    draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
-    draw.point(point[:-1], fill = fill)
-im.save('data/kronan2_norm_ess_epipoles.JPG', 'JPEG')
+    im = Image.open('data/kronan1.JPG')
+    draw = ImageDraw.Draw(im)
 
 
-#task 5
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_2[i,:], F, draw, im.size[0])
+    for point in points_image_1[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan1_norm_epipoles.JPG', 'JPEG')
 
-norm_points1 = np.linalg.inv(K).dot(points_image_1.T).T
-norm_points2 = np.linalg.inv(K).dot(points_image_2.T).T
-P1, P2 = get_projection_matrices_from_essential(E, points_image_2, points_image_1)
-triangulate_points(P1, P2, norm_points2, norm_points1, 'pc.ply')
+    im = Image.open('data/kronan2.JPG')
+    draw = ImageDraw.Draw(im)
+
+
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_1[i,:], F.T, draw, im.size[0])
+    for point in points_image_2[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan2_norm_epipoles.JPG', 'JPEG')
+
+    # task 4
+
+    K = io.loadmat('data/compEx3data.mat')['K']
+    E = essential_matrix(points_image_1, points_image_2, K)
+    new_F = np.linalg.inv(K.T).dot(E.dot(np.linalg.inv(K)))
+
+    im = Image.open('data/kronan1.JPG')
+    draw = ImageDraw.Draw(im)
+
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_2[i,:], new_F, draw, im.size[0])
+    for point in points_image_1[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan1_norm_ess_epipoles.JPG', 'JPEG')
+
+    im = Image.open('data/kronan2.JPG')
+    draw = ImageDraw.Draw(im)
+
+    for i in range(20):
+        draw = draw_epipolar_line(points_image_1[i,:], new_F.T, draw, im.size[0])
+    for point in points_image_2[:20,:]:
+        x = point[0]
+        y = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save('data/kronan2_norm_ess_epipoles.JPG', 'JPEG')
+
+
+    #task 5
+
+    norm_points1 = np.linalg.inv(K).dot(points_image_1.T).T
+    norm_points2 = np.linalg.inv(K).dot(points_image_2.T).T
+    P1, P2 = get_projection_matrices_from_essential(E, points_image_2, points_image_1)
+    triangulate_points(P1, P2, norm_points2, norm_points1, 'pc.ply')
