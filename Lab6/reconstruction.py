@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import time
 from scipy import io
 
-def ransac_essential_matrix(hom_points1, hom_points2, outliers_threshold, iters=100000):
+def ransac_essential_matrix(hom_points1, hom_points2, outliers_threshold, iters=10000):
     max_inliers = 0
     best_sample = np.empty(8, np.int)
 
@@ -51,10 +51,10 @@ if __name__ == '__main__':
     sigma_step = 1.2
     steps_num = 13
     initial_sigma = 1.5
-    keypoints1 = detect.harris_laplace(image1, 10., 5e1, initial_sigma, steps_num, sigma_step)
+    keypoints1 = detect.harris_laplace(image1, 7., 2e1, initial_sigma, steps_num, sigma_step)
     detect.draw_points_with_scale_markers(data_filepath + '/0000.png', keypoints1, (255,0,0), keypoints_filepath + '/0000keypoints.png', 1.5, 1.2, file_extension='PNG')
 
-    keypoints2 = detect.harris_laplace(image2, 10., 5e1, initial_sigma, steps_num, sigma_step)
+    keypoints2 = detect.harris_laplace(image2, 7., 2e1, initial_sigma, steps_num, sigma_step)
     detect.draw_points_with_scale_markers(data_filepath + '/0001.png', keypoints2, (255,0,0), keypoints_filepath + '/0001keypoints.png', 1.5, 1.2, file_extension='PNG')
 
     sigmas1 = np.concatenate([np.ones(keypoints1[i].shape[0]) * sigma_step ** i for i in range(len(keypoints1))])
@@ -63,8 +63,8 @@ if __name__ == '__main__':
     keypoints1 = np.concatenate(keypoints1, axis=0)
     keypoints2 = np.concatenate(keypoints2, axis=0)
 
-    desc1 = describe.compute_descriptors_for_all_points(keypoints1, image1, sigmas1)
-    desc2 = describe.compute_descriptors_for_all_points(keypoints2, image2, sigmas2)
+    desc1 = describe.compute_descriptors_for_all_points_with_scales(keypoints1, image1, sigmas1)
+    desc2 = describe.compute_descriptors_for_all_points_with_scales(keypoints2, image2, sigmas2)
 
     matches, matches_dists, ratio = describe.match_keypoints(desc1, desc2)
     describe.remove_duplicates(matches, ratio)
@@ -77,7 +77,35 @@ if __name__ == '__main__':
     hom_points1 = to_homogenous(matched_points1)
     hom_points2 = to_homogenous(matched_points2)
 
-    E, F, dists, inliers1, inliers2 = ransac_essential_matrix(hom_points1, hom_points2, 5., iters=10000)
+    E, F, dists, inliers1, inliers2 = ransac_essential_matrix(hom_points1, hom_points2, 5., iters=100000)
+
+    im = Image.open(data_filepath + '/0000.png') # drawing epipolar lines on image1
+    draw = ImageDraw.Draw(im)
+
+    for point in inliers2:
+        draw = reconstruct.draw_epipolar_line_yx(point, F, draw, im.size[0])
+    width = 3
+    fill = (0,255,0)
+    for point in inliers1:
+        y = point[0]
+        x = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save(matching_filepath + '/epipolar-lines-0000.png', 'PNG')
+
+    im = Image.open(data_filepath + '/0001.png') # drawing epipolar lines on image1
+    draw = ImageDraw.Draw(im)
+
+    for point in inliers1:
+        draw = reconstruct.draw_epipolar_line_yx(point, F.T, draw, im.size[0])
+    width = 3
+    fill = (0,255,0)
+    for point in inliers2:
+        y = point[0]
+        x = point[1]
+        draw.ellipse((x - width, y - width, x + width, y + width), fill = fill)
+        draw.point(point[:-1], fill = fill)
+    im.save(matching_filepath + '/epipolar-lines-0001.png', 'PNG')
 
     ind = np.stack([np.arange(dists.shape[0]), np.arange(dists.shape[0])], axis=1)
     describe.draw_matching(data_filepath + '/0000.png', data_filepath + '/0001.png', inliers1, inliers2, ind, matching_filepath + '/final-matching-0000-0001.png', 'PNG')
