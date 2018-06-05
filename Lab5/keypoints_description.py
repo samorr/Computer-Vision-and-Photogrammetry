@@ -87,7 +87,6 @@ def compute_descriptor(point, image_gradient, sigma=1.):
     coeffs[~mask,1] = (orientation - floor)[~mask]
     ceil[ceil == 8] = 0
     
-    
     local_desc = np.zeros((DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE, 8))
     ind = np.arange(DESCRIPTOR_WINDOW_SIZE * DESCRIPTOR_WINDOW_SIZE)
     local_desc[ind, floor] = magnitude * coeffs[:,0]
@@ -104,12 +103,14 @@ def compute_descriptor(point, image_gradient, sigma=1.):
 
     return descriptor
 
-def compute_descriptors_for_all_points(points, image, sigmas=None):
+def compute_descriptors_for_all_points(points, image):
     gradient = np.stack(np.gradient(image), axis=-1)
-    if sigmas is None:
-        descriptors = np.array([compute_descriptor(point, gradient) for point in points])
-    else:
-        descriptors = np.array([compute_descriptor(point, gradient, sigma) for point, sigma in zip(points, sigmas)])
+    descriptors = np.array([compute_descriptor(point, gradient) for point in points])
+    return descriptors
+
+def compute_descriptors_for_all_points_with_scales(points, image, sigmas):
+    gradient = np.stack(np.gradient(image), axis=-1)
+    descriptors = np.array([compute_descriptor(point, gradient, sigma) for point, sigma in zip(points, sigmas)])
     return descriptors
 
 
@@ -132,7 +133,7 @@ def draw_matching(filename1, filename2, points1, points2, matched_ind, new_filen
     imOut.paste(im1, (0, 0))
     imOut.paste(im2, (offset, 0))
     draw = ImageDraw.Draw(imOut)
-    width = 2
+    width = 3
     for ind in matched_ind:
         if ind[0] == ind[1]:
             fill = (255,0,0)
