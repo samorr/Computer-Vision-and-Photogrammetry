@@ -39,10 +39,10 @@ def essential_matrix(points_image_1, points_image_2, K):
     E = u.dot(s.dot(v))
     return E
 
-def get_dists_from_epipolar_lines(points_image_1, points_image_2, matrix):
+def get_dists_from_epipolar_lines(points_image_1, points_image_2, F):
     '''Get sum of distances from points of one image to theirs epipolar lines.
     Points should be in homogenous coordinates.'''
-    epipolar_lines = (matrix @ points_image_2.T).T
+    epipolar_lines = (F @ points_image_2.T).T
     dists = np.abs(np.sum(points_image_1 * epipolar_lines, axis=1)) / np.sqrt(epipolar_lines[:,0] ** 2 + epipolar_lines[:,1] ** 2)
     return dists
 
@@ -50,7 +50,13 @@ def get_dists_from_epipolar_lines(points_image_1, points_image_2, matrix):
 def draw_epipolar_line(point, F, draw, width):
     l = F.dot(point)
     l = l / (-l[1])
-    draw.line((0, l[2],width, width * l[0] + l[2]), fill=128, width=5)
+    draw.line((0, l[2],width, width * l[0] + l[2]), fill=128, width=2)
+    return draw
+
+def draw_epipolar_line_yx(point, F, draw, width):
+    l = F.dot(point)
+    l = l / (-l[0])
+    draw.line((0, l[2],width, width * l[1] + l[2]), fill=128, width=2)
     return draw
 
 def get_normalization_matrix(points):
@@ -151,7 +157,7 @@ if __name__ == '__main__':
     draw = ImageDraw.Draw(im)
 
     for i in range(20):
-        draw = draw_epipolar_line(points_image_2[i,:], F.T, draw, im.size[0])
+        draw = draw_epipolar_line(points_image_1[i,:], F.T, draw, im.size[0])
     for point in points_image_2[:20,:]:
         x = point[0]
         y = point[1]
@@ -232,5 +238,5 @@ if __name__ == '__main__':
 
     norm_points1 = np.linalg.inv(K).dot(points_image_1.T).T
     norm_points2 = np.linalg.inv(K).dot(points_image_2.T).T
-    P1, P2 = get_projection_matrices_from_essential(E, points_image_2, points_image_1)
-    triangulate_points(P1, P2, norm_points2, norm_points1, 'pc.ply')
+    P2, P1 = get_projection_matrices_from_essential(E, points_image_2, points_image_1)
+    triangulate_points(P2, P1, norm_points2, norm_points1, 'pc.ply')
