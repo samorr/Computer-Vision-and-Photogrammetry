@@ -30,9 +30,9 @@ def ransac_essential_matrix(hom_points1, hom_points2, outliers_threshold, iters=
 
     inliers1 = hom_points1[dists < outliers_threshold,:]
     inliers2 = hom_points2[dists < outliers_threshold,:]
-    E = reconstruct.essential_matrix(inliers1, inliers2, K) # maybe stay with E only from best_sample
-    F = np.linalg.inv(K.T).dot(E.dot(np.linalg.inv(K)))
-    dists = reconstruct.get_dists_from_epipolar_lines(inliers1, inliers2, F)
+    # E = reconstruct.essential_matrix(inliers1, inliers2, K) # maybe stay with E only from best_sample
+    # F = np.linalg.inv(K.T).dot(E.dot(np.linalg.inv(K)))
+    # dists = reconstruct.get_dists_from_epipolar_lines(inliers1, inliers2, F)
     return E, F, dists, inliers1, inliers2, best_sample
 
 
