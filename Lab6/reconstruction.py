@@ -30,10 +30,10 @@ def ransac_essential_matrix(hom_points1, hom_points2, outliers_threshold, iters=
 
     inliers1 = hom_points1[dists < outliers_threshold,:]
     inliers2 = hom_points2[dists < outliers_threshold,:]
-    E = reconstruct.essential_matrix(inliers1, inliers2, K)
+    E = reconstruct.essential_matrix(inliers1, inliers2, K) # maybe stay with E only from best_sample
     F = np.linalg.inv(K.T).dot(E.dot(np.linalg.inv(K)))
     dists = reconstruct.get_dists_from_epipolar_lines(inliers1, inliers2, F)
-    return E, F, dists, inliers1, inliers2
+    return E, F, dists, inliers1, inliers2, best_sample
 
 
 if __name__ == '__main__':
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     hom_points1 = to_homogenous(matched_points1)
     hom_points2 = to_homogenous(matched_points2)
 
-    E, F, dists, inliers1, inliers2 = ransac_essential_matrix(hom_points1, hom_points2, 5., iters=100000)
+    E, F, dists, inliers1, inliers2, best_sample = ransac_essential_matrix(hom_points1, hom_points2, 5., iters=100000)
 
     im = Image.open(data_filepath + '/0000.png') # drawing epipolar lines on image1
     draw = ImageDraw.Draw(im)

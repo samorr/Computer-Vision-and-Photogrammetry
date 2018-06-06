@@ -42,7 +42,7 @@ def essential_matrix(points_image_1, points_image_2, K):
 def get_dists_from_epipolar_lines(points_image_1, points_image_2, F):
     '''Get sum of distances from points of one image to theirs epipolar lines.
     Points should be in homogenous coordinates.'''
-    epipolar_lines = (F @ points_image_2.T).T
+    epipolar_lines = F.dot(points_image_2.T).T
     dists = np.abs(np.sum(points_image_1 * epipolar_lines, axis=1)) / np.sqrt(epipolar_lines[:,0] ** 2 + epipolar_lines[:,1] ** 2)
     return dists
 
@@ -87,8 +87,8 @@ def compute_3d_point(P1, P2, norm_point_1, norm_point_2):
     return v[-1,:]
 
 def number_of_good_points(P, points):
-    camera_Z_direction = P.dot(np.array([0., 0., 10000., 1.]))[2]
-    number_of_good_points = len(points[P.dot(points.T).T[:,2] * camera_Z_direction > 0])
+    camera_Z_direction = P.dot(np.array([0., 0., 100000., 1.]))[2]
+    number_of_good_points = np.count_nonzero(P.dot(points.T).T[:,2] * camera_Z_direction > 0)
     return number_of_good_points
 
 def compare_matrix(P1, P2, points_image_1, points_image_2):
