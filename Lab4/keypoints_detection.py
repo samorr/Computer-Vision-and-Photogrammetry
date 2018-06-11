@@ -134,9 +134,8 @@ def difference_of_gaussians(image, octaves_num=4, σ=1.6, scales_num=3):
     for oct in range(octaves_num):
         image_zoomed = ndim.zoom(image, 0.5 ** oct)
         differences.append(difference_of_gaussians_one_octave(image_zoomed, σ, scales_num))
-        # find keypoints
-        # image_zoomed = ndim.zoom(image_zoomed, 0.5)
 
+    # find keypoints
     # computing maximal values in 3x3 windows from every difference
     footprint = np.ones((3,3,3))
     footprint[1,1,1] = 0

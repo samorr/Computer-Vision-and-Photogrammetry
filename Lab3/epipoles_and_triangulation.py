@@ -124,6 +124,7 @@ def triangulate_points(P1, P2, points_image_1, points_image_2, filename):
     points = np.array(list(zip(points_3d[:,0].ravel(), points_3d[:,1].ravel(), points_3d[:,2].ravel())),dtype=[('x','f4'), ('y','f4'),('z', 'f4')])
     el = PlyElement.describe(points, 'vertex')
     PlyData([el]).write(filename)
+    return hom_points_3d
 
 if __name__ == '__main__':
 
