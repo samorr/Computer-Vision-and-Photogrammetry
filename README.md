@@ -1,5 +1,5 @@
 # Computer-Vision-and-Photogrammetry
-Course at University of Wroclaw - full 3D reconstruction from images pipeline
+### Course at University of Wroclaw - full 3D reconstruction from images pipeline
 
 Project implemented totally in Python with use of NumPy and SciPy.
 
